@@ -2,8 +2,10 @@
 
 return [
     'status' => 'sandbox',
-    'live_url' => '',
-    'sandbox_url' => '',
+    'live_url' => 'https://api.safaricom.co.ke/mpesa',
+    'sandbox_url' => 'https://sandbox.safaricom.co.ke/mpesa',
+    
+    'token_url' =>'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
   /*
     |--------------------------------------------------------------------------
     | Credentials

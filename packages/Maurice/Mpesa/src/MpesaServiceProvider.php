@@ -36,11 +36,11 @@ class MpesaServiceProvider extends ServiceProvider
     {
         $this->app->singleton('mpesa', function ($app) {
             $config = $app->make('config')->get('mpesa');
-            return new Mpesa( $config);
+            return new Mpesa();
         });
 
         $this->app->bind('mpesa', function () {
-            return $this->app->make(\Maurice\Mpesa\Facade\Mpesa::class);
+            return $this->app->make(\Maurice\Mpesa\Mpesa::class);
         });
 
     }
