@@ -2,6 +2,7 @@
 
 namespace Maurice\Mpesa;
 
+use Carbon\Carbon;
 use Illuminate\Contracts\Config\Repository;
 class Mpesa
 {
@@ -41,20 +42,9 @@ class Mpesa
 
         if($this->status === 'sandbox'){
             $this->url = $this->config->get('mpesa.sandbox_url');
-        }
+        }else{
           $this->url = $this->config->get('mpesa.live_url');
-    }
-
-    /**
-     * Friendly welcome
-     *
-     * @param string $phrase Phrase to return
-     *
-     * @return string Returns the phrase passed in
-     */
-    public function echoPhrase($phrase)
-    {
-        return $phrase;
+        }
     }
 
     public function getSecretKey(){
@@ -64,11 +54,12 @@ class Mpesa
      * This is used to generate tokens for the live environment
      * @return mixed
      */
-    public static function generateToken(){        
+    public function generateToken(){        
         if($this->status==='sandbox'){
            $url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'; 
-        }
-        $url = 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+        }else{
+             $url = 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
+        }       
 
         return $this->execToken($url);
     }
@@ -82,6 +73,27 @@ class Mpesa
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
         $curl_response = curl_exec($curl);
         return json_decode($curl_response)->access_token;
+    }
+    private  function getTimestamp(){
+        return Carbon::now()->format('YmdHis');;
+    }
+
+    private function getPassword(){
+        return \base64_encode($this->paybill.$this->getSecretKey().$this->getTimestamp());
+    }
+
+    private function curlExec($curl_post_data,$url){
+         $curl = curl_init();
+        curl_setopt($curl, CURLOPT_URL, $url);
+        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$this->generateToken()));
+        $data_string = json_encode($curl_post_data);
+        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($curl, CURLOPT_POST, true);
+        curl_setopt($curl, CURLOPT_POSTFIELDS, $data_string);
+        curl_setopt($curl, CURLOPT_HEADER, false);
+        $curl_response = curl_exec($curl);
+
+        return $curl_response;
     }
     /**
      * Use this function to initiate a reversal request
@@ -421,10 +433,7 @@ class Mpesa
      * @param $timestamp | Timestamp
      * @return mixed|string
      */
-    public static function STKPushQuery($checkoutRequestID, $password){
-        if(!isset($this->url)){
-            
-        }
+    public  function STKPushQuery($checkoutRequestID, $password){
         $url = $this->url.'/stkpushquery/v1/query';
        
         $curl_post_data = array(
@@ -438,23 +447,7 @@ class Mpesa
         return $curl_response;
     }
 
-    private function getTimestamp(){
-        return ;
-    }
-
-    private function curlExec($curl_post_data,$url){
-         $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$token));
-        $data_string = json_encode($curl_post_data);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($curl, CURLOPT_POST, true);
-        curl_setopt($curl, CURLOPT_POSTFIELDS, $data_string);
-        curl_setopt($curl, CURLOPT_HEADER, false);
-        $curl_response = curl_exec($curl);
-
-        return $curl_response;
-    }
+    
     /**
      *Use this function to confirm all transactions in callback routes
      */

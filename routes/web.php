@@ -12,5 +12,5 @@
 */
 
 Route::get('/', function () {
-    Mpesa::echoPhrase('hasjhfkjhkjashfkj');
+    Mpesa::STKPushQuery('hasjhfkjhkjashfkj','dkjasfkjgkjgasfjg');
 });
