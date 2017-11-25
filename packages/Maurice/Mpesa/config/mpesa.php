@@ -1,12 +1,41 @@
 <?php
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | Status
+    |--------------------------------------------------------------------------
+    |
+    | The app ststu
+    */
     'status' => 'sandbox',
+     /*
+    |--------------------------------------------------------------------------
+    | Live url
+    |--------------------------------------------------------------------------
+    |
+    | The url used by the application for live transactions. (All transaction request will be appendede here)
+    */
     'live_url' => 'https://api.safaricom.co.ke/mpesa',
+     /*
+    |--------------------------------------------------------------------------
+    | sandbox url
+    |--------------------------------------------------------------------------
+    |
+    | The url used by the application for Demo transactions. (All transaction request will be appendede here)
+    */
     'sandbox_url' => 'https://sandbox.safaricom.co.ke/mpesa',
-    
-    'token_url' =>'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
-  /*
+
+     /*
+    |--------------------------------------------------------------------------
+    | Initiator
+    |--------------------------------------------------------------------------
+    |
+    | Identifies an entity on the Mpesa side.
+    */
+    'initiator' => 'testapi',
+
+    /*
     |--------------------------------------------------------------------------
     | Credentials
     |--------------------------------------------------------------------------
@@ -29,7 +58,6 @@ return [
     |
     |
     */
-
     'short_code' => 174379,
 
      /*
@@ -58,16 +86,14 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Callback Method
+    | Secret Key
     |--------------------------------------------------------------------------
     |
-    | This is the request method to be used on the Callback URL on communication
-    | with your server.
+    |Key is generate from a base64.
     |
-    | e.g. GET | POST
     |
     */
 
-    'callback_method' => 'POST',
+    'key' => 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
 
 ];

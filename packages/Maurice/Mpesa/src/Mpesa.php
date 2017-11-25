@@ -4,6 +4,7 @@ namespace Maurice\Mpesa;
 
 use Carbon\Carbon;
 use Illuminate\Contracts\Config\Repository;
+use function GuzzleHttp\json_encode;
 class Mpesa
 {
     /**
@@ -11,34 +12,36 @@ class Mpesa
      */
     public $status;
 
-    public $consumer_key;
-
-    public $consumer_secret;
-
     public $url;
 
     public $config;
 
     public $paybill;
+
+    public $initiator;
+
+    public $callback;
+
+    public $auth;
     /**
      * Create a new Mpesa instance
      */
-    public function __construct(Repository $config)
+    public function __construct(Repository $config,Auth $auth)
     {
-        $this->config=$config;       
+        $this->config=$config;
+        $this->auth = $auth;
         $this->load();
     }
 
+
     private function load(){
-         $this->status= $this->config->get('mpesa.status');
+        $this->status= $this->config->get('mpesa.status');
 
-        $this->consumer_key = $this->config->get('mpesa.consumer_key');
-        $this->consumer_secret=$this->config->get('mpesa.consumer_secret');
-        $this->paybill = $this->config->get('mpesa.consumer_secret');
+        $this->paybill = $this->config->get('mpesa.short_code');
+        $this->initiator = $this->config->get('mpesa.initiator');  //stk_callback
 
-         if(!isset($this->consumer_key)||!isset( $this->consumer_secret)){
-            die("please declare the consumer key and consumer secret as defined in the documentation");
-        }
+        $this->callback = $this->config->get('mpesa.stk_callback');
+
 
         if($this->status === 'sandbox'){
             $this->url = $this->config->get('mpesa.sandbox_url');
@@ -47,45 +50,20 @@ class Mpesa
         }
     }
 
-    public function getSecretKey(){
-        return base64_encode($this->consumer_key.':'.$this->consumer_secret);
-    }
-     /**
-     * This is used to generate tokens for the live environment
-     * @return mixed
-     */
-    public function generateToken(){        
-        if($this->status==='sandbox'){
-           $url = 'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials'; 
-        }else{
-             $url = 'https://api.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials';
-        }       
-
-        return $this->execToken($url);
-    }
-    private function execToken($url){
-        $curl = curl_init();
-        curl_setopt($curl, CURLOPT_URL, $url);
-
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Authorization: Basic '.$this->getSecretKey())); //setting a custom header
-        curl_setopt($curl, CURLOPT_HEADER, false);
-        curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-        $curl_response = curl_exec($curl);
-        return json_decode($curl_response)->access_token;
-    }
     private  function getTimestamp(){
         return Carbon::now()->format('YmdHis');;
     }
 
     private function getPassword(){
-        return \base64_encode($this->paybill.$this->getSecretKey().$this->getTimestamp());
+        return \base64_encode($this->paybill.$this->auth->getSecretKey().$this->getTimestamp());
     }
 
     private function curlExec($curl_post_data,$url){
-         $curl = curl_init();
+        dd('bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',$this->auth->getSecretKey(),$this->getPassword(),$this->getTimestamp());
+        dd($this->auth->getToken(),$curl_post_data,$url);
+        $curl = curl_init();
         curl_setopt($curl, CURLOPT_URL, $url);
-        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$this->generateToken()));
+        curl_setopt($curl, CURLOPT_HTTPHEADER, array('Content-Type:application/json','Authorization:Bearer '.$this->auth->getToken()));
         $data_string = json_encode($curl_post_data);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_POST, true);
@@ -93,6 +71,10 @@ class Mpesa
         curl_setopt($curl, CURLOPT_HEADER, false);
         $curl_response = curl_exec($curl);
 
+        if(curl_error($curl))
+        {
+            return curl_error($curl);
+        }
         return $curl_response;
     }
     /**
@@ -110,10 +92,10 @@ class Mpesa
      * @param $Occasion |   Optional Parameter
      * @return mixed|string
      */
-    public static function reversal($CommandID, $Initiator, $SecurityCredential, $TransactionID, $Amount, $ReceiverParty, $RecieverIdentifierType, $ResultURL, $QueueTimeOutURL, $Remarks, $Occasion){
+    public function reversal($Initiator, $SecurityCredential, $TransactionID, $Amount, $ReceiverParty, $RecieverIdentifierType, $ResultURL, $QueueTimeOutURL, $Remarks, $Occasion){
         $url = $this->url.'/reversal/v1/request';
         $curl_post_data = array(
-            'CommandID' => $CommandID,
+            'CommandID' => 'TransactionReversal',
             'Initiator' => $Initiator,
             'SecurityCredential' => $SecurityCredential,
             'TransactionID' => $TransactionID,
@@ -142,7 +124,7 @@ class Mpesa
      * @param $Occasion |   Optional
      * @return string
      */
-    public static function b2c($InitiatorName, $SecurityCredential, $CommandID, $Amount, $PartyA, $PartyB, $Remarks, $QueueTimeOutURL, $ResultURL, $Occasion){
+    public function b2c($InitiatorName, $SecurityCredential, $CommandID, $Amount, $PartyA, $PartyB, $Remarks, $QueueTimeOutURL, $ResultURL, $Occasion){
         $url = $this->url.'/b2c/v1/paymentrequest';
         $curl_post_data = array(
             'InitiatorName' => $InitiatorName,
@@ -169,11 +151,11 @@ class Mpesa
      * @param $BillRefNumber |  Bill Reference Number (Optional).
      * @return mixed|string
      */
-    public  static  function  c2b($ShortCode, $CommandID, $Amount, $Msisdn, $BillRefNumber ){
+    public   function  c2b($CommandID, $Amount, $Msisdn, $BillRefNumber ){
         $url = $this->url.'/c2b/v1/simulate';
 
         $curl_post_data = array(
-            'ShortCode' => $ShortCode,
+            'ShortCode' => $this->paybill,
             'CommandID' => $CommandID,
             'Amount' => $Amount,
             'Msisdn' => $Msisdn,
@@ -195,7 +177,7 @@ class Mpesa
      * @param $ResultURL |  The path that stores information of transaction
      * @return mixed|string
      */
-    public static function accountBalance($CommandID, $Initiator, $SecurityCredential, $PartyA, $IdentifierType, $Remarks, $QueueTimeOutURL, $ResultURL){
+    public function accountBalance($CommandID, $Initiator, $SecurityCredential, $PartyA, $IdentifierType, $Remarks, $QueueTimeOutURL, $ResultURL){
         $url = $this->url.'/accountbalance/v1/query';
         $curl_post_data = array(
             'CommandID' => $CommandID,
@@ -225,22 +207,22 @@ class Mpesa
      * @param $Occasion |   Optional Parameter
      * @return mixed|string
      */
-    public function transactionStatus($Initiator, $SecurityCredential, $CommandID, $TransactionID, $PartyA, $IdentifierType, $ResultURL, $QueueTimeOutURL, $Remarks, $Occasion){
+    public function transactionStatus($TransactionID,$Remarks = "TransactionStatusQuery", $Occasion="TransactionStatusQuery"){
         $url = $this->url.'/transactionstatus/v1/query';
         $curl_post_data = array(
-            'Initiator' => $Initiator,
-            'SecurityCredential' => $SecurityCredential,
-            'CommandID' => $CommandID,
+            'Initiator' => $this->initiator,
+            'SecurityCredential' => $this->getPassword(),
+            'CommandID' => 'TransactionStatusQuery',
             'TransactionID' => $TransactionID,
-            'PartyA' => $PartyA,
-            'IdentifierType' => $IdentifierType,
-            'ResultURL' => $ResultURL,
-            'QueueTimeOutURL' => $QueueTimeOutURL,
+            'PartyA' =>$this->paybill,
+            'IdentifierType' => '1',
+            'ResultURL' => $this->callback,
+            'QueueTimeOutURL' => $this->callback,
             'Remarks' => $Remarks,
             'Occasion' => $Occasion
         );
        $curl_response = $this->curlExec($curl_post_data,$url);
-
+        dd($curl_response);
         return $curl_response;
     }
     /**
@@ -260,7 +242,7 @@ class Mpesa
      * @return mixed|string
      */
     public function b2b($Initiator, $SecurityCredential, $Amount, $PartyA, $PartyB, $Remarks, $QueueTimeOutURL, $ResultURL, $AccountReference, $commandID, $SenderIdentifierType, $RecieverIdentifierType){
-      
+
         $url = $this->url.'/b2b/v1/paymentrequest';
         $curl_post_data = array(
             'Initiator' => $Initiator,
@@ -295,25 +277,27 @@ class Mpesa
      * @param $Remark | Remarks
      * @return mixed|string
      */
-    public function STKPushSimulation($BusinessShortCode, $LipaNaMpesaPasskey, $TransactionType, $Amount, $PartyA, $PartyB, $PhoneNumber, $CallBackURL, $AccountReference, $TransactionDesc, $Remark){
+    public function STKPushSimulation( $PhoneNumber,$Amount, $AccountReference, $TransactionDesc = 'CustomerPayBillOnline', $Remark='STK Simulation'){
          $url = $this->url.'/stkpush/v1/processrequest';
-        
+
         $curl_post_data = array(
-            'BusinessShortCode' => $BusinessShortCode,
-            'Password' => $password,
-            'Timestamp' => $timestamp,
-            'TransactionType' => $TransactionType,
+            'BusinessShortCode' => $this->paybill,
+            'Password' => $this->getPassword(),
+            'Timestamp' => $this->getTimestamp(),
+            'TransactionType' => 'CustomerPayBillOnline',
             'Amount' => $Amount,
-            'PartyA' => $PartyA,
-            'PartyB' => $PartyB,
+            'PartyA' => $PhoneNumber,
+            'PartyB' => $this->paybill,
             'PhoneNumber' => $PhoneNumber,
-            'CallBackURL' => $CallBackURL,
+            'CallBackURL' => $this->callback,
             'AccountReference' => $AccountReference,
-            'TransactionDesc' => $TransactionType,
+            'TransactionDesc' => $TransactionDesc,
             'Remark'=> $Remark
         );
-        
+
         $curl_response = $this->curlExec($curl_post_data,$url);
+
+       dd($curl_response);
 
         return $curl_response;
     }
@@ -325,21 +309,23 @@ class Mpesa
      * @param $timestamp | Timestamp
      * @return mixed|string
      */
-    public  function STKPushQuery($checkoutRequestID, $password){
+    public  function STKPushQuery($checkoutRequestID){
         $url = $this->url.'/stkpushquery/v1/query';
-       
+
         $curl_post_data = array(
             'BusinessShortCode' => $this->paybill,
-            'Password' => $password,
+            'Password' => $this->getPassword(),
             'Timestamp' => $this->getTimestamp(),
             'CheckoutRequestID' => $checkoutRequestID
         );
-        
+
         $curl_response = $this->curlExec($curl_post_data,$url);
+
+        dd($curl_response);
         return $curl_response;
     }
 
-    
+
     /**
      *Use this function to confirm all transactions in callback routes
      */
